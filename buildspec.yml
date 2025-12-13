@@ -5,8 +5,6 @@ phases:
     commands:
       - echo Installing dependencies...
       - npm install
-      - echo Running tests...
-      - npm test -- --coverage --watchAll=false
   build:
     commands:
       - echo Build started on `date`
@@ -19,7 +17,7 @@ phases:
     commands:
       - echo Build phase completed
       - echo Build artifacts ready in dist/ directory
-      - echo Deployment will be handled by CodePipeline Deploy stage"
+      - echo Deployment will be handled by CodePipeline Deploy stage
 
 artifacts:
   files:

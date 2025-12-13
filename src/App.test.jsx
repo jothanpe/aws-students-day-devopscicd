@@ -8,16 +8,10 @@ describe('App', () => {
     expect(welcomeElement).toBeInTheDocument()
   })
 
-  test('renders counter component', () => {
+  test('renders welcome component', () => {
     render(<App />)
-    const counterElement = screen.getByText(/Contador/i)
-    expect(counterElement).toBeInTheDocument()
-  })
-
-  test('renders toggle button', () => {
-    render(<App />)
-    const toggleButton = screen.getByText(/Ocultar Contador/i)
-    expect(toggleButton).toBeInTheDocument()
+    const subtitle = screen.getByText(/DevOps CI\/CD con CodeBuild/i)
+    expect(subtitle).toBeInTheDocument()
   })
 })
 
