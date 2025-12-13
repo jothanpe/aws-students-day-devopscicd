@@ -18,15 +18,8 @@ phases:
   post_build:
     commands:
       - echo Build phase completed
-      - echo Deploying to S3...
-      - |
-        if [ -z "$S3_BUCKET" ]; then
-          echo "S3_BUCKET environment variable is not set. Skipping deployment."
-        else
-          echo "Deploying to S3 bucket: $S3_BUCKET"
-          aws s3 sync dist/ s3://$S3_BUCKET --delete
-          echo "Deployment completed successfully"
-        fi
+      - echo Build artifacts ready in dist/ directory
+      - echo "Note: Deployment will be handled by CodePipeline Deploy stage"
 
 artifacts:
   files:

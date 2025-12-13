@@ -147,7 +147,9 @@ aws s3 sync dist/ s3://tu-bucket-nombre --delete
 http://tu-bucket-nombre.s3-website-us-east-1.amazonaws.com
 ```
 
-### Opción 2: Despliegue Automático con CodeBuild
+### Opción 2: Despliegue Automático con CodeBuild (Solo Build)
+
+**Nota**: Si usas CodePipeline, ve a la **Opción 3** que es la recomendada. Esta opción es para usar solo CodeBuild sin pipeline.
 
 #### Paso 1: Preparar el Bucket S3
 
@@ -220,29 +222,29 @@ aws codebuild create-project \
        - `buildspec.test.yml` - Solo para ejecutar tests
      - **Artifacts**: S3 bucket para almacenar artefactos
 
-#### Paso 4: Configurar Buildspec para Despliegue
+#### Paso 4: Configurar Buildspec para Despliegue (Solo CodeBuild)
 
-El proyecto incluye dos buildspecs:
-- **`buildspec.yml`**: Para build completo y despliegue a S3 (incluye tests antes del build)
-- **`buildspec.test.yml`**: Solo para ejecutar tests de forma independiente
+**Importante**: El `buildspec.yml` actual está configurado para **CodePipeline**, donde el despliegue se maneja en la etapa Deploy. 
 
-El archivo `buildspec.yml` incluido ejecuta los tests y genera el build. Para desplegar automáticamente a S3, el buildspec ya está configurado:
-
-Crea un archivo `deploy.sh`:
-```bash
-#!/bin/bash
-aws s3 sync dist/ s3://tu-bucket-hosting --delete
-```
-
-Y actualiza el `buildspec.yml` para incluir el despliegue en la fase `post_build`:
+Si usas **solo CodeBuild** (sin pipeline), necesitas agregar el despliegue manualmente. Actualiza el `buildspec.yml` en la fase `post_build`:
 
 ```yaml
 post_build:
   commands:
-    - echo Deploying to S3...
-    - chmod +x deploy.sh
-    - ./deploy.sh
+    - echo Build phase completed
+    - |
+      if [ -z "$S3_BUCKET" ]; then
+        echo "S3_BUCKET environment variable is not set. Skipping deployment."
+      else
+        echo "Deploying to S3 bucket: $S3_BUCKET"
+        aws s3 sync dist/ s3://$S3_BUCKET --delete
+        echo "Deployment completed successfully"
+      fi
 ```
+
+Y configura la variable de entorno `S3_BUCKET` en el proyecto CodeBuild.
+
+**Recomendación**: Usa CodePipeline (Opción 3) para mejor separación de responsabilidades.
 
 #### Paso 5: Ejecutar el Build
 
@@ -261,22 +263,332 @@ aws codebuild start-build --project-name react-s3-deploy
 Para desplegar automáticamente en cada push:
 
 1. En CodeBuild, configura un webhook desde GitHub/Bitbucket
-2. O usa AWS CodePipeline para un flujo completo de CI/CD
+2. O usa AWS CodePipeline para un flujo completo de CI/CD (ver sección siguiente)
+
+### Opción 3: Despliegue Automático con CodePipeline (Recomendado)
+
+CodePipeline orquesta todo el flujo CI/CD: Source → Build → Deploy. Esta es la opción más completa y recomendada.
+
+#### Paso 1: Preparar Recursos
+
+1. **Bucket S3 para artefactos:**
+```bash
+aws s3 mb s3://tu-bucket-artefactos --region us-east-1
+```
+
+2. **Bucket S3 para hosting:**
+```bash
+aws s3 mb s3://tu-bucket-hosting --region us-east-1
+```
+
+3. **Habilitar hosting estático en el bucket de hosting:**
+```bash
+aws s3 website s3://tu-bucket-hosting \
+  --index-document index.html \
+  --error-document index.html
+```
+
+#### Paso 2: Crear Rol IAM para CodePipeline
+
+CodePipeline necesita un rol IAM con permisos para:
+- Acceder al repositorio (GitHub/CodeCommit)
+- Ejecutar CodeBuild
+- Acceder a S3 (artefactos y hosting)
+- CloudWatch Logs
+
+Crea un archivo `codepipeline-role-policy.json`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::tu-bucket-artefactos/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::tu-bucket-artefactos"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "codebuild:BatchGetBuilds",
+        "codebuild:StartBuild"
+      ],
+      "Resource": "arn:aws:codebuild:*:*:project/react-s3-deploy"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:*:*"
+    }
+  ]
+}
+```
+
+#### Paso 3: Crear Proyecto CodeBuild
+
+Primero crea el proyecto CodeBuild que usará el pipeline:
+
+```bash
+aws codebuild create-project \
+  --name react-s3-deploy \
+  --source type=CODEPIPELINE \
+  --artifacts type=CODEPIPELINE \
+  --environment type=LINUX_CONTAINER,image=aws/codebuild/standard:7.0,computeType=BUILD_GENERAL1_SMALL \
+  --service-role arn:aws:iam::TU-ACCOUNT-ID:role/codebuild-role \
+  --environment-variables name=S3_BUCKET,value=tu-bucket-hosting,type=PLAINTEXT
+```
+
+**Nota importante**: Configura la variable de entorno `S3_BUCKET` aquí o en el pipeline.
+
+#### Paso 4: Crear CodePipeline (Consola AWS)
+
+1. Ve a **AWS CodePipeline** en la consola
+2. Haz clic en **Create pipeline**
+3. **Paso 1 - Pipeline settings:**
+   - **Pipeline name**: `react-s3-pipeline`
+   - **Service role**: Crea nuevo rol o selecciona existente
+   - **Artifact store**: S3 bucket `tu-bucket-artefactos`
+   - Haz clic en **Next**
+
+4. **Paso 2 - Add source stage:**
+   - **Source provider**: GitHub, Bitbucket, o CodeCommit
+   - **Repository**: Tu repositorio
+   - **Branch**: `main` o `master`
+   - **Detection options**: Webhooks (recomendado) o CloudWatch Events
+   - Haz clic en **Next**
+
+5. **Paso 3 - Add build stage:**
+   - **Build provider**: AWS CodeBuild
+   - **Project name**: `react-s3-deploy` (el que creaste antes)
+   - **Build type**: Single build
+   - Haz clic en **Next**
+
+6. **Paso 4 - Add deploy stage:**
+   - **Deploy provider**: Amazon S3
+   - **Region**: Tu región (ej: `us-east-1`)
+   - **Bucket name**: `tu-bucket-hosting`
+   - **Extract file before deploy**: **No** (los archivos ya están en `dist/`)
+   - **Input artifact**: Selecciona el artefacto de salida del Build
+   - **S3 object key**: Deja vacío (se copiarán todos los archivos de `dist/`)
+   - Haz clic en **Next**
+
+   **Nota importante**: En CodePipeline, el despliegue se maneja en esta etapa, NO en el buildspec. El buildspec solo genera los artefactos en `dist/`, y CodePipeline los despliega automáticamente.
+
+7. **Paso 5 - Review:**
+   - Revisa la configuración
+   - Haz clic en **Create pipeline**
+
+#### Paso 4: Crear CodePipeline (AWS CLI)
+
+Crea un archivo `pipeline.json`:
+
+```json
+{
+  "pipeline": {
+    "name": "react-s3-pipeline",
+    "roleArn": "arn:aws:iam::TU-ACCOUNT-ID:role/codepipeline-role",
+    "artifactStore": {
+      "type": "S3",
+      "location": "tu-bucket-artefactos"
+    },
+    "stages": [
+      {
+        "name": "Source",
+        "actions": [
+          {
+            "name": "SourceAction",
+            "actionTypeId": {
+              "category": "Source",
+              "owner": "AWS",
+              "provider": "GitHub",
+              "version": "1"
+            },
+            "outputArtifacts": [
+              {
+                "name": "SourceOutput"
+              }
+            ],
+            "configuration": {
+              "Owner": "tu-usuario",
+              "Repo": "tu-repositorio",
+              "Branch": "main",
+              "OAuthToken": "tu-token-github"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Build",
+        "actions": [
+          {
+            "name": "BuildAction",
+            "actionTypeId": {
+              "category": "Build",
+              "owner": "AWS",
+              "provider": "CodeBuild",
+              "version": "1"
+            },
+            "inputArtifacts": [
+              {
+                "name": "SourceOutput"
+              }
+            ],
+            "outputArtifacts": [
+              {
+                "name": "BuildOutput"
+              }
+            ],
+            "configuration": {
+              "ProjectName": "react-s3-deploy",
+              "EnvironmentVariables": "[{\"name\":\"S3_BUCKET\",\"value\":\"tu-bucket-hosting\",\"type\":\"PLAINTEXT\"}]"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Deploy",
+        "actions": [
+          {
+            "name": "DeployAction",
+            "actionTypeId": {
+              "category": "Deploy",
+              "owner": "AWS",
+              "provider": "S3",
+              "version": "1"
+            },
+            "inputArtifacts": [
+              {
+                "name": "BuildOutput"
+              }
+            ],
+            "configuration": {
+              "BucketName": "tu-bucket-hosting",
+              "Extract": "false"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Crea el pipeline:
+```bash
+aws codepipeline create-pipeline --cli-input-json file://pipeline.json
+```
+
+#### Paso 5: Configurar Variables de Entorno en CodePipeline
+
+**Opción A: En la etapa de Build (Recomendado)**
+
+1. Edita el pipeline
+2. Selecciona la etapa **Build**
+3. Haz clic en **Edit** en la acción de build
+4. Desplázate hasta **Environment variables**
+5. Agrega:
+   - **Name**: `S3_BUCKET`
+   - **Value**: `tu-bucket-hosting`
+6. Guarda los cambios
+
+**Opción B: Ya configurado en CodeBuild**
+
+Si ya configuraste `S3_BUCKET` en el proyecto CodeBuild, el pipeline lo usará automáticamente.
+
+#### Paso 6: Ejecutar el Pipeline
+
+El pipeline se ejecutará automáticamente cuando:
+- Haces push al repositorio (si configuraste webhooks)
+- Ejecutas manualmente desde la consola
+- Usas AWS CLI:
+
+```bash
+aws codepipeline start-pipeline-execution --name react-s3-pipeline
+```
+
+#### Flujo del Pipeline
+
+1. **Source Stage**: Obtiene el código del repositorio
+2. **Build Stage**: 
+   - Ejecuta `buildspec.yml`
+   - Instala dependencias
+   - Ejecuta tests
+   - Genera el build en `dist/`
+   - Despliega a S3 (si `S3_BUCKET` está configurado)
+3. **Deploy Stage**: Copia los artefactos de `dist/` al bucket de hosting
+
+#### Ventajas de CodePipeline
+
+- ✅ Orquestación completa del flujo CI/CD
+- ✅ Visualización del pipeline en la consola
+- ✅ Historial de ejecuciones
+- ✅ Notificaciones integradas (SNS)
+- ✅ Aprobaciones manuales (opcional)
+- ✅ Múltiples ambientes (dev, staging, prod)
+
+#### Configurar Notificaciones (Opcional)
+
+Para recibir notificaciones cuando el pipeline se ejecuta:
+
+1. Crea un tema SNS
+2. En el pipeline, agrega una etapa de notificación
+3. O configura CloudWatch Events para enviar notificaciones
 
 ## 🔧 Configuración Adicional
 
-### Variables de Entorno en CodeBuild
+### Variables de Entorno
 
-Puedes agregar variables de entorno en el proyecto CodeBuild:
-- `S3_BUCKET`: Nombre del bucket de destino
-- `AWS_REGION`: Región de AWS
+La variable `S3_BUCKET` es necesaria para el despliegue automático. Puedes configurarla en:
 
-Luego actualiza el `buildspec.yml`:
-```yaml
-post_build:
-  commands:
-    - aws s3 sync dist/ s3://$S3_BUCKET --delete --region $AWS_REGION
+#### En CodeBuild:
+
+1. **Consola AWS:**
+   - CodeBuild → Tu proyecto → Edit → Environment
+   - Agrega variable: `S3_BUCKET` = `tu-bucket-hosting`
+
+2. **AWS CLI:**
+```bash
+aws codebuild update-project \
+  --name react-s3-deploy \
+  --environment environmentVariables='[{name=S3_BUCKET,value=tu-bucket-hosting,type=PLAINTEXT}]'
 ```
+
+#### En CodePipeline:
+
+1. **Consola AWS:**
+   - CodePipeline → Tu pipeline → Edit
+   - Build stage → Edit acción → Environment variables
+   - Agrega: `S3_BUCKET` = `tu-bucket-hosting`
+
+2. **En el JSON del pipeline:**
+```json
+"configuration": {
+  "ProjectName": "react-s3-deploy",
+  "EnvironmentVariables": "[{\"name\":\"S3_BUCKET\",\"value\":\"tu-bucket-hosting\",\"type\":\"PLAINTEXT\"}]"
+}
+```
+
+#### Variables Disponibles:
+
+- `S3_BUCKET` (requerida): Nombre del bucket S3 de destino
+- `AWS_REGION` (opcional): Región de AWS (por defecto usa la región del pipeline)
+
+El `buildspec.yml` ya está configurado para usar estas variables.
 
 ### CloudFront (Opcional)
 
@@ -334,10 +646,12 @@ Verifica que el rol de CodeBuild tenga permisos para:
 
 ## 📝 Notas
 
-- El archivo `buildspec.yml` está configurado para ejecutar tests antes del build y desplegar a S3
+- El archivo `buildspec.yml` está configurado para **CodePipeline**: ejecuta tests, genera build y crea artefactos. **NO despliega** (el despliegue lo maneja CodePipeline en la etapa Deploy)
+- Si usas **solo CodeBuild** (sin pipeline), necesitas agregar el despliegue manualmente en `post_build` (ver Opción 2)
 - El archivo `buildspec.test.yml` es independiente y solo ejecuta tests, útil para pipelines de CI separados
 - Los artefactos se generan en la carpeta `dist/`
 - Los reportes de cobertura se guardan en `coverage/`
+- **Separación de responsabilidades**: Build genera artefactos, Deploy los despliega
 - Asegúrate de que el bucket S3 tenga habilitado el hosting estático
 - Para producción, considera usar CloudFront para CDN y HTTPS
 
