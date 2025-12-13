@@ -19,7 +19,7 @@ phases:
     commands:
       - echo Build phase completed
       - echo Build artifacts ready in dist/ directory
-      - echo "Note: Deployment will be handled by CodePipeline Deploy stage"
+      - echo Deployment will be handled by CodePipeline Deploy stage"
 
 artifacts:
   files:
