@@ -655,15 +655,6 @@ Verifica que el rol de CodeBuild tenga permisos para:
 - Asegúrate de que el bucket S3 tenga habilitado el hosting estático
 - Para producción, considera usar CloudFront para CDN y HTTPS
 
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
-1. Fork el proyecto
-2. Crea una rama para tu feature
-3. Commit tus cambios
-4. Push a la rama
-5. Abre un Pull Request
-
 ## 📄 Licencia
 
 Este proyecto es de código abierto y está disponible bajo la licencia MIT.
