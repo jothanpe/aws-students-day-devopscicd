@@ -1,0 +1,39 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Installing dependencies...
+      - npm install
+      - echo Running tests...
+      - npm test -- --coverage --watchAll=false
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the React application...
+      - npm run build
+      - echo Build completed on `date`
+      - echo Verifying build artifacts...
+      - ls -la dist/
+  post_build:
+    commands:
+      - echo Build phase completed
+      - echo Deploying to S3...
+      - |
+        if [ -z "$S3_BUCKET" ]; then
+          echo "S3_BUCKET environment variable is not set. Skipping deployment."
+        else
+          echo "Deploying to S3 bucket: $S3_BUCKET"
+          aws s3 sync dist/ s3://$S3_BUCKET --delete
+          echo "Deployment completed successfully"
+        fi
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: dist
+
+cache:
+  paths:
+    - node_modules/**/*
+
