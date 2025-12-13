@@ -42,6 +42,8 @@ La aplicación estará disponible en `http://localhost:5173`
 
 ## 🧪 Ejecutar Tests
 
+**Nota**: Este proyecto incluye tests simples y referenciales como ejemplo. El enfoque principal está en el pipeline CI/CD, no en cobertura completa de tests unitarios.
+
 ### Ejecutar todos los tests:
 ```bash
 npm test
@@ -52,41 +54,10 @@ npm test
 npm run test:watch
 ```
 
-### Ejecutar tests con cobertura:
-```bash
-npm run test:coverage
-```
-
-Los resultados de cobertura se generarán en la carpeta `coverage/`.
-
-### Ejecutar Tests con CodeBuild
-
-El proyecto incluye un `buildspec.test.yml` independiente para ejecutar solo los tests en CodeBuild:
-
-1. **Crear un proyecto CodeBuild para tests:**
-```bash
-aws codebuild create-project \
-  --name react-tests \
-  --source type=GITHUB,location=https://github.com/tu-usuario/tu-repo.git \
-  --artifacts type=S3,location=tu-bucket-artefactos,name=test-results \
-  --environment type=LINUX_CONTAINER,image=aws/codebuild/standard:7.0,computeType=BUILD_GENERAL1_SMALL \
-  --service-role arn:aws:iam::TU-ACCOUNT-ID:role/TU-ROLE-NAME \
-  --buildspec buildspec.test.yml
-```
-
-2. **Ejecutar tests desde CodeBuild:**
-```bash
-aws codebuild start-build --project-name react-tests
-```
-
-El `buildspec.test.yml`:
-- Instala dependencias
-- Ejecuta todos los tests con cobertura
-- Genera reportes de cobertura
-- Guarda los resultados como artefactos en S3
-- Falla el build si algún test falla
-
-Los artefactos de cobertura se guardarán en el bucket S3 especificado para revisión posterior.
+Los tests incluidos son ejemplos básicos que verifican que los componentes se renderizan correctamente. Son útiles para:
+- Demostrar cómo integrar tests en el pipeline
+- Verificar que la aplicación se construye sin errores
+- Servir como referencia para futuros desarrollos
 
 ## 🏗️ Build para Producción
 
@@ -646,11 +617,10 @@ Verifica que el rol de CodeBuild tenga permisos para:
 
 ## 📝 Notas
 
-- El archivo `buildspec.yml` está configurado para **CodePipeline**: ejecuta tests, genera build y crea artefactos. **NO despliega** (el despliegue lo maneja CodePipeline en la etapa Deploy)
+- El archivo `buildspec.yml` está configurado para **CodePipeline**: genera build y crea artefactos. **NO despliega** (el despliegue lo maneja CodePipeline en la etapa Deploy)
 - Si usas **solo CodeBuild** (sin pipeline), necesitas agregar el despliegue manualmente en `post_build` (ver Opción 2)
-- El archivo `buildspec.test.yml` es independiente y solo ejecuta tests, útil para pipelines de CI separados
+- Los tests incluidos son **simples y referenciales** - el enfoque está en el pipeline CI/CD, no en cobertura completa
 - Los artefactos se generan en la carpeta `dist/`
-- Los reportes de cobertura se guardan en `coverage/`
 - **Separación de responsabilidades**: Build genera artefactos, Deploy los despliega
 - Asegúrate de que el bucket S3 tenga habilitado el hosting estático
 - Para producción, considera usar CloudFront para CDN y HTTPS

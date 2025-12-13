@@ -3,47 +3,19 @@ version: 0.2
 phases:
   pre_build:
     commands:
-      - echo ============================================
-      - echo Test Environment Setup
-      - echo ============================================
       - echo Installing dependencies...
       - npm install
-      - echo Verifying Node.js and npm versions...
-      - node --version
-      - npm --version
-      - echo Dependencies installed successfully
   build:
     commands:
-      - echo ============================================
-      - echo Running Test Suite
-      - echo ============================================
-      - echo Test execution started on `date`
-      - |
-        echo "Running unit tests with coverage..."
-        npm test -- --coverage --watchAll=false --verbose
-      - echo Test execution completed on `date`
+      - echo Running simple tests...
+      - npm test -- --watchAll=false
+      - echo Tests completed
   post_build:
     commands:
-      - echo ============================================
-      - echo Test Results Summary
-      - echo ============================================
-      - |
-        if [ -f "coverage/coverage-summary.json" ]; then
-          echo "Coverage report generated successfully"
-          echo "Coverage Summary:"
-          cat coverage/coverage-summary.json | grep -A 10 '"total"' || echo "Could not parse coverage summary"
-        else
-          echo "Warning: Coverage report not found"
-        fi
-      - echo "Listing test coverage files..."
-      - ls -la coverage/ || echo "Coverage directory not found"
-      - echo ============================================
-      - echo Test Phase Completed
-      - echo ============================================
+      - echo Test phase completed successfully
 
 artifacts:
   files:
-    - 'coverage/**/*'
     - '**/*.log'
   name: test-results
   base-directory: .

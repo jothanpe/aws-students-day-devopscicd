@@ -128,6 +128,15 @@
   animation: fadeIn 0.5s ease;
 }
 
+.result-container.generating {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.result-container.final-result {
+  animation: revealNumber 0.8s ease-out;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -136,6 +145,31 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 10px rgba(255, 107, 107, 0);
+  }
+}
+
+@keyframes revealNumber {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotateY(180deg);
+  }
+  50% {
+    transform: scale(1.1) rotateY(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotateY(0deg);
   }
 }
 
@@ -150,6 +184,78 @@
   font-weight: bold;
   margin: 1rem 0;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.suspense-number {
+  animation: numberRoll 0.1s linear infinite;
+  font-size: 4rem;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+}
+
+.final-number {
+  animation: numberReveal 0.6s ease-out;
+  font-size: 4.5rem;
+  color: #ffd700;
+  text-shadow: 
+    0 0 10px rgba(255, 215, 0, 0.8),
+    0 0 20px rgba(255, 215, 0, 0.6),
+    2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes numberRoll {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.1) rotate(5deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.8;
+  }
+}
+
+@keyframes numberReveal {
+  0% {
+    transform: scale(0) rotate(360deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.spinner-container {
+  margin: 1rem 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .result-range {
